@@ -195,4 +195,4 @@ The backend exposes:
 
 Sophia Chung & Ash Ren — Vanderbilt University, Data Science Institute
 
-Yike Li, MD, PhD - Vanderbilt University Medical Center, Department of Otolaryngology
+Yike Li, MD, PhD — Vanderbilt University Medical Center, Department of Otolaryngology
