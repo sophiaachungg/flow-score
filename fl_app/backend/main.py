@@ -1,11 +1,11 @@
 """
-Flow Limitation Classification — Backend API v2
+Flow Limitation Classification — Backend API
 ================================================
-FastAPI backend for the FL classification app, v2.
+FastAPI backend for the FL classification app.
 
 Key changes from v1:
-- Uses model_logreg_v2.pkl + scaler_logreg_v2.pkl (11-feature pruned set)
-- Feature extraction updated to match 01-1_data_preparation_feateng.ipynb
+- Uses model_logreg.pkl + scaler_logreg.pkl (11-feature pruned set)
+- Feature extraction updated to match 02-remove-correlated-features/01_data_preparation.ipynb
 - /explain endpoint now returns exact LogReg per-feature contributions
   (coef_i × scaled_value_i) — no SHAP approximation needed for LogReg
 - Contributions auto-computed on breath selection (no button required)
@@ -48,8 +48,8 @@ app.add_middleware(
 
 CONFIDENCE_THRESHOLD = 0.80
 
-MODEL_PATH  = Path("model_logreg_v2.pkl")
-SCALER_PATH = Path("scaler_logreg_v2.pkl")
+MODEL_PATH  = Path("model_logreg.pkl")
+SCALER_PATH = Path("scaler_logreg.pkl")
 
 PROCESSED_DATA_DIR = Path("./data/processed")
 SESSION_OUTPUT_DIR = Path("./data/saved_sessions")
@@ -297,7 +297,7 @@ def _flatness(phase_norm: np.ndarray, threshold: float) -> float:
 def extract_breath_features(flow: np.ndarray, duration_s: float,
                              fs: float = FS) -> dict | None:
     """
-    Extract the 11-feature set matching model_logreg_v2.pkl.
+    Extract the 11-feature set matching model_logreg.pkl.
     Returns None if the breath is too short or has no valid phases.
     Also returns phase metadata needed for waveform highlighting.
     """
@@ -781,4 +781,4 @@ async def save_session(session_id: str, payload: dict):
 
 
 if __name__ == "__main__":
-    uvicorn.run("main_v2:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
