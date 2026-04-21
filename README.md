@@ -39,8 +39,7 @@ fl-classification/
 │
 ├── fl_app/                        # Human-in-the-loop clinical interface
 │   ├── frontend/
-│   │   ├── index.html                 # Single-page app; patient browser, breath viewer, SHAP panel
-│   │   └── archive/                      # Deprecated frontend iterations
+│   │   └── index.html                 # Single-page app; patient browser, breath viewer, SHAP panel
 │   │
 │   └── backend/
 │       ├── main.py                    # FastAPI app: /patients, /breaths, /classify, /explain endpoints
