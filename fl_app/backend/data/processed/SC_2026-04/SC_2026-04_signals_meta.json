@@ -1,0 +1,18 @@
+{
+  "patient_id": "SC",
+  "study_time": "2026-04",
+  "record_id": 1,
+  "t_start_abs": 0,
+  "t_end_abs": 0,
+  "fs_target": 100.0,
+  "columns": [
+    "time_s",
+    "sig_stim_lfilt",
+    "sig_rip_chst",
+    "sig_rip_abd",
+    "sig_flow",
+    "sig_cpap",
+    "sig_pv",
+    "sig_epi"
+  ]
+}

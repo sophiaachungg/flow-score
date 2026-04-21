@@ -1,0 +1,1531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FlowScore v2 — Flow Limitation Classifier</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+  /* ── DARK MODE (default) ─────────────────────────────────
+     All colour tokens WCAG-verified below.
+     Dark backgrounds used: --bg #0c0e13 (L≈0.004), --bg2 #12151c (L≈0.006), --bg3 #1a1e28 (L≈0.011)
+     --text  #c8cfe0 L≈0.592  on --bg3: ratio (0.592+0.05)/(0.011+0.05) = 10.5:1 ✓
+     --text2 #9cabc9 L≈0.334  on --bg3: ratio (0.334+0.05)/(0.011+0.05) =  6.3:1 ✓
+     --text3 #8899bb L≈0.248  on --bg3: ratio (0.248+0.05)/(0.011+0.05) =  4.9:1 — boosted from #788EB5
+     --fl    #f07070 L≈0.167  on --bg3: ratio (0.167+0.05)/(0.011+0.05) =  3.6:1 — used at large/bold only ✓
+     --nfl   #4ecb7a L≈0.192  on --bg3: same note
+     --accent #6aa3ff L≈0.373 on --bg3: ratio (0.373+0.05)/(0.011+0.05) =  6.9:1 ✓
+     --review #f5e050 L≈0.790 on --bg3: ratio (0.790+0.05)/(0.011+0.05) = 13.8:1 ✓
+  ── ─────────────────────────────────────────────────────── */
+  :root {
+    --bg:            #0c0e13;
+    --bg2:           #12151c;
+    --bg3:           #1a1e28;
+    --border:        #252a38;
+    --border2:       #2e3448;
+    --text:          #c8cfe0;
+    --text2:         #9cabc9;
+    --text3:         #8899bb;
+    --accent:        #6aa3ff;
+    --accent-dim:    #1e3a6e;
+    --fl:            #f07070;
+    --fl-bg:         rgba(240,112,112,0.13);
+    --fl-border:     rgba(240,112,112,0.35);
+    --nfl:           #4ecb7a;
+    --nfl-bg:        rgba(78,203,122,0.10);
+    --nfl-border:    rgba(78,203,122,0.30);
+    --review:        #f5e050;
+    --review-bg:     rgba(245,224,80,0.10);
+    --review-border: rgba(245,224,80,0.40);
+    --wv-signal:     #7bb8f5;
+    --ann-bg:        #ffffff;
+    --ann-text:      #111111;
+    --ann-sub:       #444444;
+    --ann-border:    #cccccc;
+    --font-mono:     'IBM Plex Mono', monospace;
+    --font-sans:     'IBM Plex Sans', sans-serif;
+    --radius:        6px;
+  }
+
+  /* ── LIGHT MODE ──────────────────────────────────────────
+     Light backgrounds: --bg #f0f2f7 (L≈0.878), --bg2 #ffffff (L≈1.0), --bg3 #e8eaf0 (L≈0.810)
+     --text  #1a1f2e L≈0.013  on --bg2: ratio (1.0+0.05)/(0.013+0.05)  = 16.7:1 ✓
+     --text2 #374151 L≈0.042  on --bg2: ratio (1.0+0.05)/(0.042+0.05)  = 11.4:1 ✓
+     --text3 #4b5a6e L≈0.083  on --bg2: ratio (1.0+0.05)/(0.083+0.05)  =  7.9:1 ✓
+     --fl    #b91c1c L≈0.043  on --bg2: ratio (1.0+0.05)/(0.043+0.05)  = 11.3:1 ✓
+     --nfl   #15803d L≈0.049  on --bg2: ratio (1.0+0.05)/(0.049+0.05)  = 10.6:1 ✓
+     --accent #1d4ed8 L≈0.059 on --bg2: ratio (1.0+0.05)/(0.059+0.05)  =  9.6:1 ✓
+     --review #854d0e L≈0.062 on --bg2: ratio (1.0+0.05)/(0.062+0.05)  =  9.4:1 ✓
+  ── ─────────────────────────────────────────────────────── */
+  [data-theme="light"] {
+    --bg:            #f0f2f7;
+    --bg2:           #ffffff;
+    --bg3:           #e8eaf0;
+    --border:        #d1d5e0;
+    --border2:       #b8bdd0;
+    --text:          #1a1f2e;
+    --text2:         #374151;
+    --text3:         #4b5a6e;
+    --accent:        #1d4ed8;
+    --accent-dim:    #bfdbfe;
+    --fl:            #b91c1c;
+    --fl-bg:         rgba(185,28,28,0.08);
+    --fl-border:     rgba(185,28,28,0.30);
+    --nfl:           #15803d;
+    --nfl-bg:        rgba(21,128,61,0.08);
+    --nfl-border:    rgba(21,128,61,0.28);
+    --review:        #854d0e;
+    --review-bg:     rgba(133,77,14,0.08);
+    --review-border: rgba(133,77,14,0.30);
+    --wv-signal:     #1d4ed8;
+    --ann-bg:        #ffffff;
+    --ann-text:      #111111;
+    --ann-sub:       #374151;
+    --ann-border:    #9ca3af;
+    --font-mono:     'IBM Plex Mono', monospace;
+    --font-sans:     'IBM Plex Sans', sans-serif;
+    --radius:        6px;
+  }
+
+  /* Mode toggle button */
+  .theme-toggle {
+    background: transparent; border: 1px solid var(--border2);
+    border-radius: var(--radius); color: var(--text2);
+    font-family: var(--font-mono); font-size: 12px;
+    padding: 4px 9px; cursor: pointer; transition: all 0.15s;
+    line-height: 1;
+  }
+  .theme-toggle:hover { border-color: var(--text2); color: var(--text); }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: 14px; }
+  #root { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+  /* ── TOPBAR ──────────────────────────────────────────── */
+  .topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 0 20px; height: 48px; min-height: 48px;
+    border-bottom: 1px solid var(--border); background: var(--bg2);
+  }
+  .logo { font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: var(--accent); letter-spacing: 0.05em; }
+  .logo span { color: var(--text2); font-weight: 300; }
+  .topbar-sep { flex: 1; }
+  .mode-badge {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+    padding: 3px 8px; border-radius: 3px; letter-spacing: 0.08em;
+    background: rgba(79,142,247,0.12); color: var(--accent); border: 1px solid var(--accent-dim);
+  }
+  .mode-badge.demo { background: rgba(240,224,64,0.08); color: var(--review); border-color: rgba(240,224,64,0.25); }
+
+  .body { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── LEFT PANEL ──────────────────────────────────────── */
+  .left-panel {
+    width: 240px; min-width: 240px;
+    border-right: 1px solid var(--border); background: var(--bg2);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .panel-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .panel-label { font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.12em; color: var(--text3); text-transform: uppercase; margin-bottom: 10px; }
+
+  .patient-input {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: var(--radius); color: var(--text); font-family: var(--font-mono);
+    font-size: 12px; padding: 8px 10px; outline: none; transition: border-color 0.15s;
+  }
+  .patient-input:focus { border-color: var(--accent); }
+  .patient-input::placeholder { color: var(--text3); }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 7px 14px; border-radius: var(--radius); font-family: var(--font-sans);
+    font-size: 12px; font-weight: 500; border: none; cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #fff; width: 100%; }
+  .btn-primary:hover:not(:disabled) { background: #6ba0ff; }
+  .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border2); }
+  .btn-ghost:hover:not(:disabled) { border-color: var(--text2); color: var(--text); }
+  .btn-save { background: rgba(61,186,110,0.15); color: var(--nfl); border: 1px solid var(--nfl-border); width: 100%; }
+  .btn-save:hover:not(:disabled) { background: rgba(61,186,110,0.25); }
+
+  /* Summary cards */
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .summary-card { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 10px 8px; }
+  .summary-card.full { grid-column: span 2; }
+  .sc-label { font-size: 11px; font-family: var(--font-mono); color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+  .sc-value { font-family: var(--font-mono); font-size: 18px; font-weight: 600; color: var(--text); }
+  .sc-value.fl  { color: var(--fl); }
+  .sc-value.nfl { color: var(--nfl); }
+  .sc-value.rev { color: var(--review); }
+  .sc-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+  /* Left panel spacer + save bar at bottom */
+  .left-panel-spacer { flex: 1; }
+  .save-bar-left { padding: 10px 14px; border-top: 1px solid var(--border); background: var(--bg2); flex-shrink: 0; }
+
+  /* ── MAIN CONTENT ────────────────────────────────────── */
+  .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+  /* ── WAVEFORM PANEL ──────────────────────────────────── */
+  .waveform-panel {
+    padding: 12px 20px 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2); flex-shrink: 0;
+  }
+  .waveform-header {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+    font-family: var(--font-mono); font-size: 11px; color: var(--text2);
+  }
+  .waveform-header strong { color: var(--text); }
+
+  /* Confidence threshold input */
+  .conf-input-wrap {
+    display: flex; align-items: center; gap: 6px;
+    margin-left: auto;
+  }
+  .conf-input-label { font-family: var(--font-mono); font-size: 11px; color: var(--text3); white-space: nowrap; }
+  .conf-input {
+    width: 46px; background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: var(--radius); color: var(--text); font-family: var(--font-mono);
+    font-size: 12px; padding: 4px 6px; outline: none; text-align: center;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .conf-input:focus { border-color: var(--accent); }
+  .conf-input.error {
+    border-color: var(--fl) !important;
+    box-shadow: 0 0 0 2px rgba(224,82,82,0.35), 0 0 8px rgba(224,82,82,0.5);
+    animation: glow-red 0.3s ease;
+  }
+  @keyframes glow-red {
+    0%   { box-shadow: 0 0 0 0 rgba(224,82,82,0.7); }
+    50%  { box-shadow: 0 0 0 4px rgba(224,82,82,0.5); }
+    100% { box-shadow: 0 0 0 2px rgba(224,82,82,0.35); }
+  }
+  .conf-input-pct { font-family: var(--font-mono); font-size: 11px; color: var(--text3); }
+
+  canvas#waveform {
+    display: block; width: 100%; height: 130px;
+    background: var(--bg3); border-radius: var(--radius);
+    border: 1px solid var(--border); cursor: crosshair;
+  }
+  .waveform-legend {
+    display: flex; gap: 16px; margin-top: 6px;
+    font-family: var(--font-mono); font-size: 11px; color: var(--text2);
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-swatch { width: 12px; height: 8px; border-radius: 2px; }
+
+  /* ── CENTRAL SPLIT ───────────────────────────────────── */
+  .central-split { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+  /* Left: filter bar + breath list */
+  .central-left {
+    width: 22%; min-width: 140px;
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* Filter bar — sits at top of central-left */
+  .filter-bar {
+    display: flex; gap: 3px; padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2); flex-shrink: 0;
+  }
+  .filter-btn {
+    flex: 1; padding: 4px 4px; border-radius: var(--radius);
+    font-family: var(--font-mono); font-size: 10px; font-weight: 500;
+    background: transparent; border: 1px solid var(--border2);
+    color: var(--text2); cursor: pointer; transition: all 0.12s; text-align: center;
+  }
+  .filter-btn:hover { border-color: var(--text3); color: var(--text); }
+  .filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(79,142,247,0.08); }
+  .filter-btn.fl-btn  { color: var(--fl); }
+  .filter-btn.nfl-btn { color: var(--nfl); }
+  .filter-btn.rev-btn { color: var(--review); }
+
+  .breath-list-scroll { flex: 1; overflow-y: auto; }
+  .breath-list-scroll::-webkit-scrollbar { width: 4px; }
+  .breath-list-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .breath-list-item {
+    display: flex; align-items: center; gap: 7px;
+    padding: 7px 12px; border-bottom: 1px solid var(--border);
+    cursor: pointer; transition: background 0.1s;
+    font-family: var(--font-mono); font-size: 11px;
+  }
+  .breath-list-item:hover { background: var(--bg3); }
+  .breath-list-item.selected { background: rgba(79,142,247,0.08); border-left: 2px solid var(--accent); padding-left: 10px; }
+  .breath-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .breath-dot.fl     { background: var(--fl); }
+  .breath-dot.nfl    { background: var(--nfl); }
+  .breath-dot.review { background: var(--review); }
+  .breath-list-meta { color: var(--text2); font-size: 10px; margin-left: auto; }
+  .breath-edited-mark { color: var(--review); font-size: 10px; }
+
+  /* Middle: detail panel */
+  .central-middle {
+    width: 40%; border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden; min-width: 0;
+  }
+  .detail-panel { flex: 1; padding: 14px 16px; overflow-y: auto; min-width: 0; }
+  .detail-panel::-webkit-scrollbar { width: 4px; }
+  .detail-panel::-webkit-scrollbar-thumb { background: var(--border2); }
+
+  .detail-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .detail-badge { font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: var(--radius); letter-spacing: 0.05em; }
+  .detail-badge.fl     { background: var(--fl-bg); color: var(--fl); border: 1px solid var(--fl-border); }
+  .detail-badge.nfl    { background: var(--nfl-bg); color: var(--nfl); border: 1px solid var(--nfl-border); }
+  .detail-badge.review { background: var(--review-bg); color: var(--review); border: 1px solid var(--review-border); }
+
+  /* ── MINI WAVEFORM + SCRUBBER ────────────────────────── */
+  .breath-wave-wrap { position: relative; margin-bottom: 4px; }
+  canvas#breathwave {
+    display: block; width: 100%; height: 96px;
+    background: var(--bg3); border-radius: var(--radius) var(--radius) 0 0;
+    border: 1px solid var(--border); border-bottom: none;
+  }
+
+  /* Scrubber sits flush below the waveform canvas */
+  .scrubber-wrap {
+    position: relative; width: 100%; height: 20px;
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 0 0 var(--radius) var(--radius);
+    overflow: hidden; cursor: default; margin-bottom: 8px;
+    user-select: none;
+  }
+  /* Minimap — compressed full breath */
+  canvas#scrubber-map {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  /* Selected window highlight */
+  .scrubber-window {
+    position: absolute; top: 0; height: 100%;
+    background: rgba(79,142,247,0.18);
+    border-left:  1px solid rgba(79,142,247,0.8);
+    border-right: 1px solid rgba(79,142,247,0.8);
+    pointer-events: none;
+  }
+  /* Drag handles */
+  .scrubber-handle {
+    position: absolute; top: 0; width: 8px; height: 100%;
+    background: rgba(79,142,247,0.75); border-radius: 2px;
+    cursor: ew-resize; z-index: 10;
+    transform: translateX(-50%);
+  }
+  .scrubber-handle:hover { background: rgba(79,142,247,1); }
+
+  .detail-stat-row { display: flex; gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
+  .detail-stat { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 9px; font-family: var(--font-mono); font-size: 11px; }
+  .detail-stat .ds-label { color: var(--text3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 2px; }
+  .detail-stat .ds-val { color: var(--text); }
+
+  .hitl-box { background: var(--review-bg); border: 1px solid var(--review-border); border-radius: var(--radius); padding: 11px 13px; margin-bottom: 10px; }
+  .overwrite-box { background: var(--bg3); border: 1px solid var(--border2); border-radius: var(--radius); padding: 11px 13px; margin-bottom: 10px; }
+  .overwrite-title { color: var(--text2); font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .hitl-title { color: var(--review); font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .hitl-btns { display: flex; gap: 8px; }
+  .hitl-btn { flex: 1; padding: 8px; border-radius: var(--radius); font-family: var(--font-mono); font-size: 12px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; }
+  .hitl-btn.fl  { background: var(--fl-bg); color: var(--fl); border: 1px solid var(--fl-border); }
+  .hitl-btn.nfl { background: var(--nfl-bg); color: var(--nfl); border: 1px solid var(--nfl-border); }
+  .hitl-btn.fl:hover  { background: rgba(224,82,82,0.25); }
+  .hitl-btn.nfl:hover { background: rgba(61,186,110,0.22); }
+
+  .audit-tag { font-family: var(--font-mono); font-size: 11px; color: var(--text3); padding: 4px 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 3px; margin-top: 6px; }
+  .conf-bar { height: 3px; background: var(--border2); border-radius: 2px; margin-top: 4px; }
+  .conf-bar-fill { height: 100%; border-radius: 2px; }
+
+  /* Right: XAI */
+  .central-right { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; background: var(--bg2); }
+  .xai-panel { flex: 1; padding: 14px 16px; overflow-y: auto; }
+  .xai-panel::-webkit-scrollbar { width: 4px; }
+  .xai-panel::-webkit-scrollbar-thumb { background: var(--border2); }
+
+  .xai-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .xai-header .panel-label { margin-bottom: 0; flex: 1; }
+  .btn-clear-ann {
+    font-family: var(--font-mono); font-size: 10px; font-weight: 500;
+    padding: 3px 8px; border-radius: 3px; cursor: pointer;
+    background: rgba(79,142,247,0.08); color: var(--text3);
+    border: 1px solid var(--border2); transition: all 0.15s; white-space: nowrap;
+  }
+  .btn-clear-ann:hover { color: var(--text); border-color: var(--text3); }
+
+  .logodds-bar-wrap { margin-bottom: 12px; }
+  .logodds-label { font-family: var(--font-mono); font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .logodds-track { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+  .logodds-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+
+  .contrib-group-header { font-family: var(--font-mono); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text3); margin: 10px 0 5px; padding-bottom: 3px; border-bottom: 1px solid var(--border); }
+
+  .contrib-row { margin-bottom: 6px; padding: 5px 7px; border-radius: 5px; transition: background 0.12s; border: 1px solid transparent; cursor: default; }
+  .contrib-row:hover { background: var(--bg3); border-color: var(--border2); }
+  .contrib-row.localisable:hover { border-color: var(--accent-dim); }
+
+  .contrib-label-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }
+  .contrib-feat-name { font-family: var(--font-mono); font-size: 11px; color: var(--text2); display: flex; align-items: center; gap: 5px; }
+  .contrib-feat-name .feat-label { color: var(--text); font-size: 11px; }
+  .loc-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .contrib-val { font-family: var(--font-mono); font-size: 11px; font-weight: 600; }
+  .contrib-val.pos { color: var(--fl); }
+  .contrib-val.neg { color: var(--nfl); }
+  .contrib-bar-track { height: 5px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+  .contrib-bar-fill { height: 100%; border-radius: 3px; transition: width 0.35s ease; }
+  .contrib-bar-fill.pos { background: var(--fl); }
+  .contrib-bar-fill.neg { background: var(--nfl); }
+  .contrib-raw { font-family: var(--font-mono); font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+  .contrib-legend { font-family: var(--font-mono); font-size: 10px; color: var(--text3); margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; gap: 12px; flex-wrap: wrap; }
+  .contrib-legend-item { display: flex; align-items: center; gap: 4px; }
+  .contrib-legend-dot { width: 8px; height: 4px; border-radius: 2px; }
+
+  /* Empty state */
+  .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text3); font-family: var(--font-mono); font-size: 12px; text-align: center; }
+  .empty-icon { font-size: 36px; opacity: 0.3; }
+
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .xai-loading { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 11px; color: var(--text3); padding: 8px 0; }
+
+  * { scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+</style>
+</head>
+<body>
+
+<!-- ── ANNOTATION TOOLTIP — lives on body, never wiped ── -->
+<style>
+  #wave-annotation {
+    display: none; position: fixed; z-index: 9999;
+    background: var(--ann-bg); color: var(--ann-text);
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; line-height: 1.5;
+    padding: 9px 12px; border-radius: 8px; border: 1.5px solid var(--ann-border);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    max-width: 260px; pointer-events: none;
+    white-space: normal; word-break: break-word;
+  }
+  #ann-title { font-weight: 600; font-size: 11px; margin-bottom: 5px; color: var(--ann-text); }
+  #ann-body  { font-size: 10.5px; color: var(--ann-sub); font-family: 'IBM Plex Sans', sans-serif; line-height: 1.55; }
+  #ann-tag   { display: inline-block; margin-top: 6px; font-size: 9.5px;
+               font-family: 'IBM Plex Mono', monospace; padding: 2px 7px;
+               border-radius: 3px; }
+  #ann-tag.loc    { background: #eef2ff; color: #1d4ed8; border: 1px solid #c7d2fe; }
+  #ann-tag.nonloc { background: #f3f4f6; color: var(--text3); border: 1px solid var(--border2); }
+  [data-theme="light"] #ann-tag.nonloc { background: #f9fafb; color: #4b5a6e; border-color: #d1d5e0; }
+</style>
+<div id="wave-annotation">
+  <div id="ann-title"></div>
+  <div id="ann-body"></div>
+  <span id="ann-tag" class="loc"></span>
+</div>
+
+<div id="root">
+  <div class="topbar">
+    <div class="logo">Flow<span>Score</span> <span style="font-size:11px;font-weight:300;color:var(--text3)">v2</span></div>
+    <div class="topbar-sep"></div>
+    <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark mode">☀︎</button>
+    <div id="mode-badge" class="mode-badge demo">DEMO MODE</div>
+    <div id="session-info" style="font-family:var(--font-mono);font-size:11px;color:var(--text3)"></div>
+  </div>
+
+  <div class="body">
+    <!-- ── LEFT PANEL ─────────────────────────────────── -->
+    <div class="left-panel">
+      <div class="panel-section">
+        <div class="panel-label">Patient Data</div>
+        <input class="patient-input" id="patient-id-input"
+               placeholder="Patient ID (e.g. KD_2024-02)" style="margin-bottom:8px" />
+        <button class="btn btn-primary" id="load-btn" onclick="loadPatient()">
+          <span id="load-btn-text">▶ Run Inference</span>
+          <span id="load-spinner" class="spinner" style="display:none;width:13px;height:13px;border-width:2px"></span>
+        </button>
+      </div>
+
+      <div class="panel-section" id="summary-section" style="display:none">
+        <div class="panel-label">Session Summary</div>
+        <div class="summary-grid" id="summary-grid"></div>
+      </div>
+
+      <div class="left-panel-spacer"></div>
+
+      <div class="save-bar-left" id="save-section" style="display:none">
+        <button class="btn btn-save" onclick="saveSession()">↓ Save Session CSV</button>
+      </div>
+    </div>
+
+    <!-- ── MAIN CONTENT ───────────────────────────────── -->
+    <div class="main-content" id="main-content">
+
+      <!-- Empty state -->
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">◈</div>
+        <div>Enter a patient ID and run inference<br>to begin the review session.</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">
+          Backend at <span style="color:var(--accent)">localhost:8000</span>
+        </div>
+      </div>
+
+      <!-- Loaded view -->
+      <div id="loaded-view" style="display:none;flex-direction:column;height:100%;overflow:hidden">
+
+        <!-- Airflow overview waveform -->
+        <div class="waveform-panel">
+          <div class="waveform-header">
+            Patient <strong id="wv-patient-id"></strong> — Airflow Overview
+            <div class="conf-input-wrap">
+              <span class="conf-input-label">Confidence threshold:</span>
+              <input class="conf-input" id="conf-input" type="text"
+                     maxlength="2" value="80"
+                     title="Enter an integer between 1 and 99"
+                     oninput="onConfInput(this)"
+                     onkeydown="onConfKeydown(event, this)"
+                     onblur="onConfBlur(this)" />
+              <span class="conf-input-pct">%</span>
+            </div>
+          </div>
+          <canvas id="waveform"></canvas>
+          <div class="waveform-legend">
+            <div class="legend-item"><div class="legend-swatch" style="background:var(--fl-bg);border:1px solid var(--fl-border)"></div>FL</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:var(--nfl-bg);border:1px solid var(--nfl-border)"></div>NFL</div>
+            <div class="legend-item"><div class="legend-swatch" style="background:var(--review-bg);border:1px solid var(--review-border)"></div>Needs Review</div>
+            <div class="legend-item" style="margin-left:auto;color:var(--text3)" id="wv-breath-count"></div>
+          </div>
+        </div>
+
+        <!-- Central split -->
+        <div class="central-split">
+
+          <!-- Left: filter bar + breath list -->
+          <div class="central-left">
+            <div class="filter-bar">
+              <button class="filter-btn active" id="f-all"    onclick="filterBreaths('all')">All</button>
+              <button class="filter-btn rev-btn" id="f-review" onclick="filterBreaths('review')">Review</button>
+              <button class="filter-btn fl-btn"  id="f-fl"     onclick="filterBreaths('fl')">FL</button>
+              <button class="filter-btn nfl-btn" id="f-nfl"    onclick="filterBreaths('nfl')">NFL</button>
+            </div>
+            <div class="breath-list-scroll">
+              <div id="breath-list"></div>
+            </div>
+          </div>
+
+          <!-- Middle: selected breath detail + mini waveform + scrubber -->
+          <div class="central-middle">
+            <div class="detail-panel" id="detail-panel">
+              <div class="empty-state" style="height:100%">
+                <div class="empty-icon" style="font-size:24px">↑</div>
+                <div>Click a breath in the waveform<br>or select one from the list.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: LogReg feature importances -->
+          <div class="central-right">
+            <div class="xai-panel">
+              <div class="xai-header">
+                <div class="panel-label">Feature Importances</div>
+                <button class="btn-clear-ann" id="clear-ann-btn"
+                        onclick="clearAnnotation()" style="display:none">Clear Highlight</button>
+              </div>
+              <div id="contrib-output">
+                <div style="font-family:var(--font-mono);font-size:11px;color:var(--text3)">
+                  Select a breath to see per-feature contributions.<br><br>
+                  <span style="font-size:10px">Hover a feature row to highlight its waveform region.<br>
+                  Blue dot = localisable on the waveform.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- .central-split -->
+      </div><!-- #loaded-view -->
+    </div><!-- .main-content -->
+  </div><!-- .body -->
+</div><!-- #root -->
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────────────────────
+const API_BASE = 'http://localhost:8000';
+
+// ─────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────
+let sessionData      = null;
+let sessionId        = null;
+let allBreaths       = [];
+let filteredBreaths  = [];
+let selectedBreath   = null;
+let currentFilter    = 'all';
+let waveformCanvas   = null;
+let wvCtx            = null;
+let confidenceThresh = 0.80;   // live threshold, updated by input
+
+// Breath waveform state
+let breathT          = [];
+let breathSig        = [];
+let breathPhaseMeta  = null;
+let activeHighlight  = null;
+
+// Scrubber state: fractions [0,1] of the breath window
+let scrubL = 0.0;
+let scrubR = 1.0;
+let scrubDragging = null;  // null | 'left' | 'right' | 'window'
+let scrubDragStartX = 0;
+let scrubDragStartL = 0;
+let scrubDragStartR = 0;
+
+// ─────────────────────────────────────────────────────────────
+// COLOUR HELPERS
+// ─────────────────────────────────────────────────────────────
+function breathColor(b)  { return b.needs_review ? 'review' : b.prediction === 'FL' ? 'fl' : 'nfl'; }
+function breathBg(b)     { return b.needs_review ? 'rgba(240,224,64,0.10)' : b.prediction === 'FL' ? 'rgba(224,82,82,0.13)' : 'rgba(61,186,110,0.10)'; }
+function breathStroke(b) { return b.needs_review ? 'rgba(240,224,64,0.50)' : b.prediction === 'FL' ? 'rgba(224,82,82,0.50)' : 'rgba(61,186,110,0.40)'; }
+
+// ─────────────────────────────────────────────────────────────
+// CONFIDENCE THRESHOLD INPUT
+// ─────────────────────────────────────────────────────────────
+let _lastValidConf = '80';
+
+function onConfInput(el) {
+  // Strip non-digit characters live
+  el.value = el.value.replace(/[^0-9]/g, '');
+}
+
+function onConfKeydown(e, el) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    applyConfThreshold(el);
+    el.blur();
+  }
+}
+
+function onConfBlur(el) {
+  applyConfThreshold(el);
+}
+
+function applyConfThreshold(el) {
+  const raw = el.value.trim();
+  const num = parseInt(raw, 10);
+  const valid = !isNaN(num) && num >= 1 && num <= 99;
+
+  if (!valid) {
+    // Glow red, revert
+    el.classList.add('error');
+    setTimeout(() => el.classList.remove('error'), 1200);
+    el.value = _lastValidConf;
+    return;
+  }
+
+  _lastValidConf       = String(num);
+  el.value             = _lastValidConf;
+  confidenceThresh     = num / 100;
+
+  if (!sessionData) return;
+
+  // Recompute needs_review for all breaths from stored p_fl
+  allBreaths.forEach(b => {
+    const conf = b.p_fl >= 0.5 ? b.p_fl : 1 - b.p_fl;
+    b.needs_review = conf < confidenceThresh;
+  });
+
+  // Re-render everything that depends on needs_review
+  filterBreaths(currentFilter);
+  renderSummary();
+  renderWaveform();
+  if (selectedBreath) {
+    // Refresh the HITL box in detail panel
+    selectedBreath = allBreaths.find(b => b.breath_id === selectedBreath.breath_id);
+    renderDetailPanel();
+    drawBreathWaveform(activeHighlight);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// LOAD PATIENT
+// ─────────────────────────────────────────────────────────────
+async function loadPatient() {
+  const pid = document.getElementById('patient-id-input').value.trim();
+  if (!pid) return;
+
+  document.getElementById('load-btn').disabled = true;
+  document.getElementById('load-btn-text').textContent = 'Running…';
+  document.getElementById('load-spinner').style.display = 'inline-block';
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/session/upload?patient_id=${encodeURIComponent(pid)}`,
+      { method: 'POST' }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+
+    sessionData     = data;
+    sessionId       = data.session_id;
+
+    // Apply current threshold to breaths on load
+    allBreaths = data.breaths.map(b => {
+      const conf = b.p_fl >= 0.5 ? b.p_fl : 1 - b.p_fl;
+      return { ...b, needs_review: conf < confidenceThresh };
+    });
+    filteredBreaths = [...allBreaths];
+
+    document.getElementById('empty-state').style.display  = 'none';
+    document.getElementById('loaded-view').style.display  = 'flex';
+
+    const badge = document.getElementById('mode-badge');
+    if (data.model_mode === 'LIVE') { badge.textContent = 'LIVE MODEL'; badge.classList.remove('demo'); }
+    else                            { badge.textContent = 'DEMO MODE';  badge.classList.add('demo'); }
+
+    document.getElementById('session-info').textContent = `Session: ${sessionId}`;
+    document.getElementById('wv-patient-id').textContent = data.patient_id;
+    document.getElementById('summary-section').style.display = '';
+    document.getElementById('save-section').style.display    = '';
+
+    renderSummary();
+    filterBreaths('all');
+    renderWaveform();
+  } catch (e) {
+    alert('Error: ' + e.message);
+  } finally {
+    document.getElementById('load-btn').disabled = false;
+    document.getElementById('load-btn-text').textContent = '▶ Run Inference';
+    document.getElementById('load-spinner').style.display = 'none';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// SUMMARY
+// ─────────────────────────────────────────────────────────────
+function renderSummary() {
+  const n_fl    = allBreaths.filter(b => b.prediction === 'FL').length;
+  const n_nfl   = allBreaths.filter(b => b.prediction === 'NFL').length;
+  const n_rev   = allBreaths.filter(b => b.needs_review).length;
+  const n_total = allBreaths.length;
+  const fl_pct  = n_total ? (100 * n_fl / n_total).toFixed(1) : '0.0';
+
+  document.getElementById('summary-grid').innerHTML = `
+    <div class="summary-card full">
+      <div class="sc-label">Total</div>
+      <div class="sc-value">${n_total}</div>
+      <div class="sc-sub">Patient: ${sessionData.patient_id}</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">FL</div>
+      <div class="sc-value fl">${n_fl}</div>
+      <div class="sc-sub">${fl_pct}%</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-label">NFL</div>
+      <div class="sc-value nfl">${n_nfl}</div>
+      <div class="sc-sub">${(100 - parseFloat(fl_pct)).toFixed(1)}%</div>
+    </div>
+    <div class="summary-card full">
+      <div class="sc-label">Needs Review</div>
+      <div class="sc-value rev">${n_rev}</div>
+      <div class="sc-sub">${n_total ? (100 * n_rev / n_total).toFixed(1) : 0}% below ${Math.round(confidenceThresh * 100)}% confidence</div>
+    </div>
+  `;
+}
+
+// ─────────────────────────────────────────────────────────────
+// BREATH LIST + FILTER
+// ─────────────────────────────────────────────────────────────
+function filterBreaths(type) {
+  currentFilter = type;
+  if (type === 'all')    filteredBreaths = [...allBreaths];
+  else if (type === 'review') filteredBreaths = allBreaths.filter(b => b.needs_review);
+  else if (type === 'fl')     filteredBreaths = allBreaths.filter(b => b.prediction === 'FL' && !b.needs_review);
+  else if (type === 'nfl')    filteredBreaths = allBreaths.filter(b => b.prediction === 'NFL' && !b.needs_review);
+  renderBreathList();
+  renderWaveform();
+}
+
+function renderBreathList() {
+  // Update filter button states
+  ['all','review','fl','nfl'].forEach(k => {
+    const el = document.getElementById('f-' + k);
+    if (el) el.classList.toggle('active', k === currentFilter);
+  });
+
+  document.getElementById('breath-list').innerHTML = filteredBreaths.map(b => {
+    const col = breathColor(b);
+    const sel = selectedBreath && selectedBreath.breath_id === b.breath_id ? 'selected' : '';
+    const editMark = b.label_source === 'user' ? '<span class="breath-edited-mark">✎</span>' : '';
+    return `<div class="breath-list-item ${sel}" onclick="selectBreath(${b.breath_id})">
+      <div class="breath-dot ${col}"></div>
+      <span style="color:var(--text2)">#${String(b.breath_id).padStart(3,'0')}</span>
+      <span style="color:var(--text)">${b.prediction}</span>
+      ${editMark}
+      <span class="breath-list-meta">${b.start_s.toFixed(1)}s</span>
+    </div>`;
+  }).join('');
+
+  document.getElementById('wv-breath-count').textContent = `${filteredBreaths.length} breaths shown`;
+}
+
+// ─────────────────────────────────────────────────────────────
+// OVERVIEW WAVEFORM
+// ─────────────────────────────────────────────────────────────
+function renderWaveform() {
+  const canvas = document.getElementById('waveform');
+  waveformCanvas = canvas;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  wvCtx = ctx;
+  drawWaveform(ctx, w, h);
+
+  canvas.onclick = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const xFrac = (e.clientX - rect.left) / rect.width;
+    const tClick = xFrac * sessionData.duration;
+    const clicked = allBreaths.find(b => tClick >= b.start_s && tClick <= b.end_s);
+    if (clicked) selectBreath(clicked.breath_id);
+  };
+}
+
+function drawWaveform(ctx, w, h) {
+  const t_arr = sessionData.airflow_t;
+  const sig   = sessionData.airflow_signal;
+  const dur   = sessionData.duration;
+
+  ctx.clearRect(0, 0, w, h);
+
+  allBreaths.forEach(b => {
+    const x1 = (b.start_s / dur) * w, x2 = (b.end_s / dur) * w;
+    ctx.fillStyle = breathBg(b);
+    ctx.fillRect(x1, 0, x2 - x1, h);
+  });
+
+  if (selectedBreath) {
+    const b = selectedBreath;
+    const x1 = (b.start_s / dur) * w, x2 = (b.end_s / dur) * w;
+    ctx.strokeStyle = 'rgba(79,142,247,0.8)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x1, 1, x2 - x1, h - 2);
+  }
+
+  const sigMax = Math.max(...sig.map(Math.abs), 1);
+  ctx.beginPath(); ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--wv-signal').trim(); ctx.lineWidth = 1.2;
+  for (let i = 0; i < t_arr.length; i++) {
+    const x = (t_arr[i] / dur) * w;
+    const y = h / 2 - (sig[i] / sigMax) * (h / 2 - 6);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  ctx.beginPath(); ctx.strokeStyle = 'rgba(200,207,224,0.08)'; ctx.lineWidth = 0.5;
+  ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
+
+  allBreaths.forEach(b => {
+    const x1 = (b.start_s / dur) * w, x2 = (b.end_s / dur) * w;
+    ctx.strokeStyle = breathStroke(b); ctx.lineWidth = 0.5;
+    ctx.strokeRect(x1, 0, x2 - x1, h);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// SELECT BREATH
+// ─────────────────────────────────────────────────────────────
+async function selectBreath(breathId) {
+  selectedBreath = allBreaths.find(b => b.breath_id === breathId);
+  if (!selectedBreath) return;
+
+  const t_arr = sessionData.airflow_t, sig = sessionData.airflow_signal;
+  breathT   = t_arr.filter(t => t >= selectedBreath.start_s && t <= selectedBreath.end_s);
+  breathSig = sig.filter((_, i) => t_arr[i] >= selectedBreath.start_s && t_arr[i] <= selectedBreath.end_s);
+  breathPhaseMeta = null;
+  activeHighlight = null;
+
+  // Reset scrubber to full view
+  scrubL = 0.0; scrubR = 1.0;
+
+  renderBreathList();
+  if (wvCtx && waveformCanvas) drawWaveform(wvCtx, waveformCanvas.clientWidth, waveformCanvas.clientHeight);
+  renderDetailPanel();
+  clearAnnotation();
+
+  document.getElementById('contrib-output').innerHTML =
+    `<div class="xai-loading"><span class="spinner" style="width:14px;height:14px;border-width:2px"></span> Computing contributions…</div>`;
+
+  await fetchContributions(breathId);
+}
+
+// ─────────────────────────────────────────────────────────────
+// DETAIL PANEL
+// ─────────────────────────────────────────────────────────────
+function renderDetailPanel() {
+  const b = selectedBreath;
+  if (!b) return;
+
+  const col      = breathColor(b);
+  const confPct  = (b.confidence * 100).toFixed(1);
+  const confColor = b.needs_review ? 'var(--review)' : (b.prediction === 'FL' ? 'var(--fl)' : 'var(--nfl)');
+
+  let hitlHtml = '';
+  if (b.needs_review) {
+    hitlHtml = `<div class="hitl-box">
+      <div class="hitl-title">⚠ Human Review Required</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Model confidence below threshold. Please classify:</div>
+      <div class="hitl-btns">
+        <button class="hitl-btn fl"  onclick="resolveBreath(${b.breath_id},'FL')">FL — Flow Limited</button>
+        <button class="hitl-btn nfl" onclick="resolveBreath(${b.breath_id},'NFL')">NFL — Normal</button>
+      </div>
+    </div>`;
+  } else {
+    hitlHtml = `<div class="overwrite-box">
+      <div class="overwrite-title">Override Model Label</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px">
+        Classified as <strong style="color:${b.prediction==='FL'?'var(--fl)':'var(--nfl)'}">${b.prediction}</strong> with ${confPct}% confidence.
+      </div>
+      <div class="hitl-btns">
+        <button class="hitl-btn fl"  onclick="resolveBreath(${b.breath_id},'FL')"
+          ${b.prediction==='FL'&&b.label_source!=='user'?'disabled style="opacity:0.35;cursor:not-allowed"':''}>FL — Flow Limited</button>
+        <button class="hitl-btn nfl" onclick="resolveBreath(${b.breath_id},'NFL')"
+          ${b.prediction==='NFL'&&b.label_source!=='user'?'disabled style="opacity:0.35;cursor:not-allowed"':''}>NFL — Normal</button>
+      </div>
+    </div>`;
+  }
+
+  const auditHtml = b.label_source === 'user'
+    ? `<div class="audit-tag">✎ User-edited · ${b.edited_by||'unknown'} · ${b.edited_at ? new Date(b.edited_at).toLocaleString() : ''}</div>`
+    : '';
+
+  document.getElementById('detail-panel').innerHTML = `
+    <div class="detail-header">
+      <div class="detail-badge ${col}">${b.prediction}</div>
+      <div style="font-family:var(--font-mono);font-size:12px;color:var(--text2)">Breath #${String(b.breath_id).padStart(3,'0')}</div>
+      ${b.label_source==='user' ? '<div style="font-size:11px;color:var(--review);font-family:var(--font-mono)">✎ Edited</div>' : ''}
+    </div>
+
+    <div class="breath-wave-wrap">
+      <canvas id="breathwave"></canvas>
+    </div>
+    <div class="scrubber-wrap" id="scrubber-wrap">
+      <canvas id="scrubber-map"></canvas>
+      <div class="scrubber-window" id="scrubber-window"></div>
+      <div class="scrubber-handle" id="scrubber-handle-l" data-handle="left"></div>
+      <div class="scrubber-handle" id="scrubber-handle-r" data-handle="right"></div>
+    </div>
+
+    <div class="detail-stat-row">
+      <div class="detail-stat"><div class="ds-label">Start</div><div class="ds-val">${b.start_s.toFixed(2)}s</div></div>
+      <div class="detail-stat"><div class="ds-label">End</div><div class="ds-val">${b.end_s.toFixed(2)}s</div></div>
+      <div class="detail-stat"><div class="ds-label">Duration</div><div class="ds-val">${(b.end_s-b.start_s).toFixed(2)}s</div></div>
+      <div class="detail-stat"><div class="ds-label">P(FL)</div><div class="ds-val" style="color:var(--fl)">${(b.p_fl*100).toFixed(1)}%</div></div>
+      <div class="detail-stat" style="flex:1">
+        <div class="ds-label">Confidence</div>
+        <div class="ds-val" style="color:${confColor}">${confPct}%</div>
+        <div class="conf-bar"><div class="conf-bar-fill" style="width:${confPct}%;background:${confColor}"></div></div>
+      </div>
+      <div class="detail-stat">
+        <div class="ds-label">Source</div>
+        <div class="ds-val" style="color:${b.label_source==='user'?'var(--review)':'var(--text2)'}">${b.label_source}</div>
+      </div>
+    </div>
+
+    ${hitlHtml}${auditHtml}
+  `;
+
+  initScrubber();
+  drawBreathWaveform(activeHighlight);
+  drawScrubberMap();
+  updateScrubberUI();
+}
+
+// ─────────────────────────────────────────────────────────────
+// MINI WAVEFORM — draws the zoomed window
+// ─────────────────────────────────────────────────────────────
+function drawBreathWaveform(highlightKey) {
+  const c = document.getElementById('breathwave');
+  if (!c || breathT.length < 2) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr;
+  const ctx = c.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const cw = c.clientWidth, ch = c.clientHeight;
+
+  const b = selectedBreath;
+  const n = breathSig.length;
+
+  // Apply scrubber window
+  const i0 = Math.floor(scrubL * (n - 1));
+  const i1 = Math.ceil(scrubR  * (n - 1));
+  const tSlice   = breathT.slice(i0, i1 + 1);
+  const sigSlice = breathSig.slice(i0, i1 + 1);
+
+  const tMin = tSlice[0] ?? 0, tMax = tSlice[tSlice.length - 1] ?? 1;
+  const dur  = tMax - tMin || 1;
+  const sigMax = Math.max(...sigSlice.map(Math.abs), 0.1);
+
+  const xOf  = (t) => ((t - tMin) / dur) * cw;
+  const yOf  = (v)  => ch / 2 - (v / sigMax) * (ch / 2 - 8);
+  // Map full-breath index to x pixel in zoomed view
+  const ixOf = (i) => {
+    const t = breathT[i] ?? breathT[0];
+    return xOf(t);
+  };
+
+  // Background gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, ch);
+  grad.addColorStop(0, breathBg(b));
+  grad.addColorStop(1, 'transparent');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, cw, ch);
+
+  // ── Main signal line — drawn first so overlays appear on top ──
+  ctx.beginPath();
+  ctx.strokeStyle = b.needs_review ? 'var(--review)' : (b.prediction==='FL' ? 'var(--fl)' : 'var(--nfl)');
+  ctx.lineWidth = 2;
+  tSlice.forEach((t, i) => {
+    const x = xOf(t), y = yOf(sigSlice[i]);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Zero line
+  ctx.beginPath(); ctx.strokeStyle='rgba(200,207,224,0.1)'; ctx.lineWidth=0.5;
+  ctx.moveTo(0,ch/2); ctx.lineTo(cw,ch/2); ctx.stroke();
+
+  // ── Highlight overlays drawn on top of signal ──────────
+  if (highlightKey && breathPhaseMeta) {
+    const pm = breathPhaseMeta;
+    ctx.save();
+
+    if (highlightKey === 'insp_mid50') {
+      const x1 = ixOf(pm.insp_mid25_idx), x2 = ixOf(pm.insp_mid75_idx);
+      if (x2 > 0 && x1 < cw) {
+        ctx.fillStyle = 'rgba(79,142,247,0.18)';
+        ctx.fillRect(Math.max(0,x1), 0, Math.min(cw,x2)-Math.max(0,x1), ch);
+        ctx.strokeStyle = 'rgba(79,142,247,0.6)'; ctx.lineWidth = 1.5; ctx.setLineDash([4,3]);
+        [x1,x2].forEach(x => { if (x>=0&&x<=cw) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,ch); ctx.stroke(); } });
+        ctx.setLineDash([]);
+      }
+    }
+    else if (highlightKey === 'insp_peaks') {
+      // Find peaks in inspiratory region with a low distance so smooth curves
+      // aren't missed. Use min-distance of 3 samples (same as Python backend).
+      const s0 = pm.insp_start_idx, s1 = Math.min(pm.insp_end_idx, n - 1);
+      const inspSlice = breathSig.slice(s0, s1 + 1);
+
+      // Collect local maxima; minDist prevents adjacent noisy samples
+      const minDist = Math.max(3, Math.floor(inspSlice.length / 12));
+      const rawPeaks = [];
+      for (let k = 1; k < inspSlice.length - 1; k++) {
+        if (inspSlice[k] > inspSlice[k - 1] && inspSlice[k] > inspSlice[k + 1]) {
+          rawPeaks.push(k + s0);
+        }
+      }
+
+      // Suppress peaks within minDist of a taller neighbour (non-maximum suppression)
+      const peakIdxs = rawPeaks.filter((pi, i) => {
+        for (let j = 0; j < rawPeaks.length; j++) {
+          if (j === i) continue;
+          if (Math.abs(rawPeaks[j] - pi) < minDist &&
+              breathSig[rawPeaks[j]] > breathSig[pi]) return false;
+        }
+        return true;
+      });
+
+      // Always include the absolute inspiratory peak so envelope is meaningful
+      if (!peakIdxs.includes(pm.peak_abs_idx) &&
+          pm.peak_abs_idx >= s0 && pm.peak_abs_idx <= s1) {
+        peakIdxs.push(pm.peak_abs_idx);
+        peakIdxs.sort((a, b) => a - b);
+      }
+
+      // Need at least 2 anchor points; if fewer, fall back to just the max
+      const anchors = peakIdxs.length >= 2 ? peakIdxs : [pm.peak_abs_idx];
+
+      // Build a smooth envelope with cardinal spline through the anchor points.
+      // We also add the first and last inspiratory sample as anchors so the
+      // envelope spans the full inspiratory phase.
+      const envPts = [
+        { x: ixOf(s0), y: yOf(breathSig[s0]) },
+        ...anchors.map(pi => ({ x: ixOf(pi), y: yOf(breathSig[pi]) })),
+        { x: ixOf(s1), y: yOf(breathSig[s1]) },
+      ];
+
+      // Deduplicate by x position (ascending)
+      const seen = new Set();
+      const pts = envPts.filter(p => {
+        const k = Math.round(p.x);
+        if (seen.has(k)) return false;
+        seen.add(k); return true;
+      }).sort((a, b) => a.x - b.x);
+
+      // Draw smooth cardinal-spline envelope via bezier approximation
+      // tension = 0 gives Catmull-Rom; we clamp control points to prevent
+      // the envelope from dipping below the zero line.
+      const tension = 0.4;
+
+      const envPath = new Path2D();
+      if (pts.length === 1) {
+        envPath.moveTo(pts[0].x, pts[0].y);
+      } else {
+        envPath.moveTo(pts[0].x, pts[0].y);
+        for (let k = 0; k < pts.length - 1; k++) {
+          const p0 = pts[Math.max(0, k - 1)];
+          const p1 = pts[k];
+          const p2 = pts[k + 1];
+          const p3 = pts[Math.min(pts.length - 1, k + 2)];
+          const cp1x = p1.x + (p2.x - p0.x) * tension;
+          const cp1y = Math.min(p1.y, p1.y + (p2.y - p0.y) * tension);
+          const cp2x = p2.x - (p3.x - p1.x) * tension;
+          const cp2y = Math.min(p2.y, p2.y - (p3.y - p1.y) * tension);
+          envPath.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+        }
+      }
+
+      // 1. Draw the smooth envelope line on top of the signal
+      ctx.save();
+      ctx.strokeStyle = 'rgba(240,180,40,0.95)';
+      ctx.lineWidth   = 2;
+      ctx.lineJoin    = 'round';
+      ctx.stroke(envPath);
+
+      // 2. Shade the gap between the envelope (above) and the actual
+      //    signal (below) — this is the scooping depth visually.
+      //    Clip so the fill only covers the inspiratory phase x-range.
+      ctx.beginPath();
+      ctx.rect(Math.max(0, ixOf(s0)), 0, Math.min(cw, ixOf(s1)) - Math.max(0, ixOf(s0)), ch);
+      ctx.clip();
+
+      // Fill region: envelope path (left→right) then signal path (right→left)
+      const gapPath = new Path2D(envPath);   // top boundary = envelope
+
+      // Signal path reversed (right→left) as bottom boundary
+      const visS0 = Math.max(s0, i0), visS1 = Math.min(s1, i1);
+      gapPath.lineTo(ixOf(visS1), yOf(breathSig[visS1]));
+      for (let k = visS1 - 1; k >= visS0; k--) {
+        gapPath.lineTo(ixOf(k), yOf(breathSig[k]));
+      }
+      gapPath.closePath();
+
+      ctx.fillStyle = 'rgba(240,180,40,0.22)';
+      ctx.fill(gapPath);
+
+      ctx.restore();
+    }
+    else if (highlightKey === 'insp_flatness90') {
+      const pif90 = 0.90 * pm.pif;
+      ctx.fillStyle = 'rgba(61,186,110,0.22)';
+      let inFlat=false, flatX=0;
+      for (let k=i0; k<=i1; k++) {
+        const isFlat = breathSig[k] >= pif90;
+        const x = ixOf(k);
+        if (isFlat && !inFlat) { flatX=x; inFlat=true; }
+        else if (!isFlat && inFlat) { ctx.fillRect(flatX,0,x-flatX,ch); inFlat=false; }
+      }
+      if (inFlat) ctx.fillRect(flatX, 0, ixOf(i1)-flatX, ch);
+      const yLine = yOf(pif90);
+      ctx.strokeStyle='rgba(61,186,110,0.5)'; ctx.lineWidth=1; ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(0,yLine); ctx.lineTo(cw,yLine); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    else if (highlightKey === 'insp_peak') {
+      const px = ixOf(pm.peak_abs_idx);
+      if (px >= 0 && px <= cw) {
+        ctx.strokeStyle='rgba(240,180,40,0.9)'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,ch); ctx.stroke();
+        const py = yOf(breathSig[pm.peak_abs_idx]);
+        ctx.fillStyle='rgba(240,180,40,0.9)';
+        ctx.beginPath(); ctx.moveTo(px,py-6); ctx.lineTo(px+5,py); ctx.lineTo(px,py+6); ctx.lineTo(px-5,py); ctx.closePath(); ctx.fill();
+      }
+    }
+    else if (highlightKey === 'insp_phase') {
+      const x1 = ixOf(pm.insp_start_idx), x2 = ixOf(pm.insp_end_idx);
+      if (x2>0 && x1<cw) {
+        ctx.fillStyle='rgba(79,142,247,0.12)';
+        ctx.fillRect(Math.max(0,x1),0,Math.min(cw,x2)-Math.max(0,x1),ch);
+        ctx.strokeStyle='rgba(79,142,247,0.7)'; ctx.lineWidth=1.5;
+        [x1,x2].forEach(x=>{ if(x>=0&&x<=cw){ctx.beginPath();ctx.moveTo(x,4);ctx.lineTo(x,ch-4);ctx.stroke();}});
+      }
+    }
+    else if (highlightKey === 'full_breath') {
+      ctx.strokeStyle='rgba(160,130,240,0.6)'; ctx.lineWidth=1.5;
+      ctx.strokeRect(2,2,cw-4,ch-4);
+    }
+
+    ctx.restore();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// SCRUBBER
+// ─────────────────────────────────────────────────────────────
+function drawScrubberMap() {
+  const c = document.getElementById('scrubber-map');
+  if (!c || breathT.length < 2) return;
+  const dpr = window.devicePixelRatio || 1;
+  c.width = c.clientWidth * dpr; c.height = c.clientHeight * dpr;
+  const ctx = c.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const cw = c.clientWidth, ch = c.clientHeight;
+
+  const sigMax = Math.max(...breathSig.map(Math.abs), 0.1);
+  const tMin = breathT[0], tMax = breathT[breathT.length-1];
+  const dur = tMax - tMin || 1;
+
+  const wvSignal = getComputedStyle(document.documentElement).getPropertyValue('--wv-signal').trim();
+  ctx.fillStyle = wvSignal.replace(')', ', 0.15)').replace('rgb(', 'rgba(').replace('#', '').length > 9
+    ? 'rgba(123,184,245,0.15)'
+    : 'rgba(123,184,245,0.15)';
+
+  // Simpler: derive fill/stroke from the var directly via opacity
+  ctx.globalAlpha = 0.18;
+  ctx.fillStyle = wvSignal;
+  ctx.beginPath();
+  breathT.forEach((t,i) => {
+    const x = ((t-tMin)/dur)*cw;
+    const y = ch/2 - (breathSig[i]/sigMax)*(ch/2-2);
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.lineTo(cw, ch/2); ctx.lineTo(0, ch/2); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 0.6;
+  ctx.strokeStyle = wvSignal; ctx.lineWidth = 1;
+  ctx.beginPath();
+  breathT.forEach((t,i) => {
+    const x = ((t-tMin)/dur)*cw;
+    const y = ch/2 - (breathSig[i]/sigMax)*(ch/2-2);
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  ctx.globalAlpha = 1.0;
+}
+
+function updateScrubberUI() {
+  const win = document.getElementById('scrubber-window');
+  const hl  = document.getElementById('scrubber-handle-l');
+  const hr  = document.getElementById('scrubber-handle-r');
+  if (!win || !hl || !hr) return;
+
+  win.style.left  = (scrubL * 100) + '%';
+  win.style.width = ((scrubR - scrubL) * 100) + '%';
+  hl.style.left   = (scrubL * 100) + '%';
+  hr.style.left   = (scrubR * 100) + '%';
+}
+
+function initScrubber() {
+  const wrap = document.getElementById('scrubber-wrap');
+  if (!wrap) return;
+
+  wrap.addEventListener('mousedown', scrubMouseDown);
+  document.addEventListener('mousemove', scrubMouseMove);
+  document.addEventListener('mouseup',   scrubMouseUp);
+}
+
+function scrubFracFromEvent(e) {
+  const wrap = document.getElementById('scrubber-wrap');
+  if (!wrap) return 0;
+  const rect = wrap.getBoundingClientRect();
+  return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+}
+
+function scrubMouseDown(e) {
+  const frac = scrubFracFromEvent(e);
+  const SNAP = 0.04;
+  if (Math.abs(frac - scrubL) < SNAP) {
+    scrubDragging = 'left';
+  } else if (Math.abs(frac - scrubR) < SNAP) {
+    scrubDragging = 'right';
+  } else if (frac > scrubL && frac < scrubR) {
+    scrubDragging = 'window';
+    scrubDragStartX = frac;
+    scrubDragStartL = scrubL;
+    scrubDragStartR = scrubR;
+  }
+  e.preventDefault();
+}
+
+function scrubMouseMove(e) {
+  if (!scrubDragging) return;
+  const frac = scrubFracFromEvent(e);
+  const MIN_WIN = 0.05;
+
+  if (scrubDragging === 'left') {
+    scrubL = Math.min(frac, scrubR - MIN_WIN);
+    scrubL = Math.max(0, scrubL);
+  } else if (scrubDragging === 'right') {
+    scrubR = Math.max(frac, scrubL + MIN_WIN);
+    scrubR = Math.min(1, scrubR);
+  } else if (scrubDragging === 'window') {
+    const delta = frac - scrubDragStartX;
+    const span  = scrubDragStartR - scrubDragStartL;
+    let newL = scrubDragStartL + delta;
+    let newR = scrubDragStartR + delta;
+    if (newL < 0) { newL = 0; newR = span; }
+    if (newR > 1) { newR = 1; newL = 1 - span; }
+    scrubL = newL; scrubR = newR;
+  }
+
+  updateScrubberUI();
+  drawBreathWaveform(activeHighlight);
+}
+
+function scrubMouseUp() {
+  scrubDragging = null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// FETCH CONTRIBUTIONS
+// ─────────────────────────────────────────────────────────────
+async function fetchContributions(breathId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/session/${sessionId}/explain/${breathId}`);
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+
+    for (const c of data.contributions) {
+      if (c.phase_meta) { breathPhaseMeta = c.phase_meta; break; }
+    }
+    renderContributions(data);
+  } catch (e) {
+    document.getElementById('contrib-output').innerHTML =
+      `<div style="color:var(--fl);font-size:11px;font-family:var(--font-mono)">${e.message}</div>`;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// RENDER CONTRIBUTIONS
+// ─────────────────────────────────────────────────────────────
+function renderContributions(data) {
+  const contribs = data.contributions;
+  const maxAbs   = Math.max(...contribs.map(c => Math.abs(c.contribution)), 0.01);
+  const pFl      = data.p_fl_check;
+  const pct      = Math.round(pFl * 100);
+  const barColor = pFl >= 0.5 ? 'var(--fl)' : 'var(--nfl)';
+
+  const grouped    = {};
+  const groupOrder = [];
+  for (const c of contribs) {
+    if (!grouped[c.group]) { grouped[c.group] = []; groupOrder.push(c.group); }
+    grouped[c.group].push(c);
+  }
+
+  let html = `
+    <div class="logodds-bar-wrap">
+      <div class="logodds-label">
+        <span>P(FL)</span>
+        <span style="color:${barColor};font-weight:600">${pct}%</span>
+      </div>
+      <div class="logodds-track">
+        <div class="logodds-fill" style="width:${pct}%;background:${barColor}"></div>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-top:3px">
+        log-odds: ${data.log_odds>0?'+':''}${data.log_odds.toFixed(3)}
+        &nbsp;(intercept: ${data.intercept>0?'+':''}${data.intercept.toFixed(3)})
+      </div>
+    </div>`;
+
+  for (const grp of groupOrder) {
+    html += `<div class="contrib-group-header">${escHtml(grp)}</div>`;
+    for (const c of grouped[grp]) {
+      const barPct = Math.abs(c.contribution) / maxAbs * 100;
+      const isPos  = c.contribution > 0;
+      const valStr = (isPos ? '+' : '') + c.contribution.toFixed(4);
+      const locDot = c.localisable
+        ? `<span class="loc-dot" title="Localisable — hover to highlight waveform"></span>` : '';
+
+      html += `
+        <div class="contrib-row ${c.localisable ? 'localisable' : ''}"
+             data-feature="${escHtml(c.feature)}"
+             data-highlight="${escHtml(c.highlight||'')}"
+             data-localisable="${c.localisable}"
+             data-label="${escHtml(c.label)}"
+             data-definition="${escHtml(c.definition)}"
+             onmouseenter="onFeatureHover(event,this)"
+             onmouseleave="onFeatureLeave(event)">
+          <div class="contrib-label-row">
+            <div class="contrib-feat-name">${locDot}<span class="feat-label">${escHtml(c.label)}</span></div>
+            <div class="contrib-val ${isPos?'pos':'neg'}">${valStr}</div>
+          </div>
+          <div class="contrib-bar-track">
+            <div class="contrib-bar-fill ${isPos?'pos':'neg'}" style="width:${barPct}%"></div>
+          </div>
+          <div class="contrib-raw">raw: ${c.raw_value.toFixed(4)} · scaled: ${c.scaled_value>0?'+':''}${c.scaled_value.toFixed(3)}</div>
+        </div>`;
+    }
+  }
+
+  html += `
+    <div class="contrib-legend">
+      <div class="contrib-legend-item"><div class="contrib-legend-dot" style="background:var(--fl)"></div>→ FL</div>
+      <div class="contrib-legend-item"><div class="contrib-legend-dot" style="background:var(--nfl)"></div>→ NFL</div>
+      <div class="contrib-legend-item">
+        <span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--accent);margin-right:3px"></span>Localisable
+      </div>
+      <div style="margin-left:auto;color:var(--text3);font-size:10px">coef × scaled value</div>
+    </div>`;
+
+  document.getElementById('contrib-output').innerHTML = html;
+}
+
+// ─────────────────────────────────────────────────────────────
+// FEATURE HOVER → TOOLTIP + HIGHLIGHT
+// ─────────────────────────────────────────────────────────────
+function onFeatureHover(e, el) {
+  const localisable = el.dataset.localisable === 'true';
+  const highlight   = el.dataset.highlight;
+  const label       = el.dataset.label;
+  const definition  = el.dataset.definition;
+
+  activeHighlight = (localisable && highlight) ? highlight : null;
+
+  if (localisable && highlight) {
+    drawBreathWaveform(highlight);
+    document.getElementById('clear-ann-btn').style.display = 'inline-block';
+  }
+
+  showAnnotation(label, definition, localisable, e);
+}
+
+function onFeatureLeave(e) {
+  // Keep waveform highlight — user must press Clear Highlight to remove
+  hideAnnotation();
+}
+
+function showAnnotation(label, definition, localisable, mouseEvent) {
+  const ann   = document.getElementById('wave-annotation');
+  const title = document.getElementById('ann-title');
+  const body  = document.getElementById('ann-body');
+  const tag   = document.getElementById('ann-tag');
+
+  title.textContent = label;
+  body.textContent  = definition;
+
+  if (localisable) {
+    tag.textContent = '📍 waveform region highlighted';
+    tag.className   = 'loc';
+  } else {
+    tag.textContent = '⬛ whole-phase statistic';
+    tag.className   = 'nonloc';
+  }
+
+  ann.style.display = 'block';
+
+  // Position near cursor, avoiding viewport edges
+  const vpW = window.innerWidth, vpH = window.innerHeight;
+  const annW = 270, annH = 160;
+  let left = mouseEvent.clientX + 16;
+  let top  = mouseEvent.clientY - 20;
+  if (left + annW > vpW - 8) left = mouseEvent.clientX - annW - 16;
+  if (top  + annH > vpH - 8) top  = vpH - annH - 8;
+  if (top < 8) top = 8;
+  if (left < 8) left = 8;
+
+  ann.style.left = left + 'px';
+  ann.style.top  = top  + 'px';
+}
+
+function hideAnnotation() {
+  document.getElementById('wave-annotation').style.display = 'none';
+}
+
+function clearAnnotation() {
+  activeHighlight = null;
+  drawBreathWaveform(null);
+  hideAnnotation();
+  const btn = document.getElementById('clear-ann-btn');
+  if (btn) btn.style.display = 'none';
+}
+
+// ─────────────────────────────────────────────────────────────
+// HITL RESOLUTION
+// ─────────────────────────────────────────────────────────────
+async function resolveBreath(breathId, label) {
+  try {
+    const res = await fetch(`${API_BASE}/api/session/${sessionId}/breath/${breathId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label, edited_by: 'reviewer' }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const updated = await res.json();
+
+    const idx = allBreaths.findIndex(b => b.breath_id === breathId);
+    if (idx !== -1) {
+      // Preserve client-side needs_review after edit
+      const conf = updated.p_fl >= 0.5 ? updated.p_fl : 1 - updated.p_fl;
+      updated.needs_review = conf < confidenceThresh;
+      allBreaths[idx] = updated;
+    }
+    selectedBreath = allBreaths.find(b => b.breath_id === breathId);
+
+    filterBreaths(currentFilter);
+    renderSummary();
+    renderDetailPanel();
+    drawBreathWaveform(activeHighlight);
+    renderWaveform();
+  } catch (e) {
+    alert('Error updating label: ' + e.message);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// SAVE SESSION
+// ─────────────────────────────────────────────────────────────
+async function saveSession() {
+  if (!sessionId) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/session/${sessionId}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ saved_by: 'reviewer' }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    alert(`✓ Saved ${data.n_breaths} breaths (${data.n_user_edited} user-edited)\nPath: ${data.path}`);
+  } catch (e) {
+    alert('Save error: ' + e.message);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// THEME TOGGLE
+// ─────────────────────────────────────────────────────────────
+function toggleTheme() {
+  const html   = document.documentElement;
+  const btn    = document.getElementById('theme-toggle');
+  const isLight = html.getAttribute('data-theme') === 'light';
+
+  if (isLight) {
+    html.removeAttribute('data-theme');
+    btn.textContent = '☀︎';
+    btn.title = 'Switch to light mode';
+  } else {
+    html.setAttribute('data-theme', 'light');
+    btn.textContent = '🌙';
+    btn.title = 'Switch to dark mode';
+  }
+
+  // Redraw canvases so they pick up the new --wv-signal colour
+  if (sessionData && waveformCanvas) renderWaveform();
+  if (selectedBreath && breathT.length > 1) {
+    drawBreathWaveform(activeHighlight);
+    drawScrubberMap();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// UTILITIES
+// ─────────────────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+window.addEventListener('resize', () => {
+  if (sessionData && waveformCanvas) renderWaveform();
+});
+</script>
+</body>
+</html>
