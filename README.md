@@ -50,11 +50,12 @@ fl-classification/
 │           └── saved_sessions/           # Clinician session exports (JSON)
 │
 ├── models/                           # Serialized trained models from compare-to-baseline
-│   ├── lightgbm_lopo.pkl                 # LightGBM (best performer, AUC = 0.887, κ = 0.524)
-│   ├── xgboost_lopo.pkl
-│   ├── random_forest_lopo.pkl
+│   ├── lightgbm_lopo.pkl                 # LightGBM (best performer)
 │   ├── logreg_lopo.pkl
-│   └── shap_explainer_lightgbm.pkl       # Pre-computed SHAP TreeExplainer object
+│   ├── scaler_logreg.pkl
+│   ├── cnn_simplecnn.pt
+│   ├── cnn_resnet18.pt
+│   └── cnn_efficientnetb0.pt          # EfficientNet (best CNN)
 │
 └── README.md
 ```
@@ -160,12 +161,12 @@ The web app requires Python 3.12+ and the packages listed below.
 # Install dependencies
 pip install fastapi uvicorn pandas numpy scipy scikit-learn lightgbm shap openpyxl pyarrow
  
-# Start the backend (from fl_app_v2/backend/)
-cd fl_app_v2/backend
-uvicorn main_v2:app --reload --port 8000
+# Start the backend (from fl_app/backend/)
+cd fl_app/backend
+uvicorn main:app --reload --port 8000
  
 # Open the frontend
-open fl_app_v2/frontend/index_v3.html
+open fl_app/frontend/index.html
 # or serve it via any static file server
 ```
  
