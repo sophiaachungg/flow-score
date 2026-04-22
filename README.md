@@ -1,4 +1,4 @@
-# Flow Limitation Classification
+# Flow-Score: Flow Limitation Classification Tool
 
 Breath-by-breath binary classification of inspiratory flow limitation (FL) from polysomnographic airflow signals, with SHAP-based explainability and a human-in-the-loop (HITL) clinical web interface.
 
@@ -19,7 +19,7 @@ This project implements an automated ML pipeline for FL detection using 17 ampli
 ## Repository Structure
 
 ```
-fl-classification/
+flow-score/
 │
 ├── notebooks/
 │   ├── 01-compare-to-baseline/          # Primary benchmark pipeline
@@ -43,7 +43,7 @@ fl-classification/
 │   │
 │   └── backend/
 │       ├── main.py                    # FastAPI app: /patients, /breaths, /classify, /explain endpoints
-│       ├── model_logreg.pkl           # Serialized logistic regression model (11-feature pruned set)
+│       ├── model_logreg.pkl           # Serialized logistic regression model (11-feature pruned set, same as models/logreg_lopo.pkl)
 │       ├── scaler_logreg.pkl          # Corresponding StandardScaler
 │       └── data/
 │           ├── processed/                # Per-patient processed data (see Data Format below)
@@ -51,7 +51,7 @@ fl-classification/
 │
 ├── models/                           # Serialized trained models from compare-to-baseline
 │   ├── lightgbm_lopo.pkl                 # LightGBM (best performer)
-│   ├── logreg_lopo.pkl
+│   ├── logreg_lopo.pkl                 # Logistic Regression (good classifier, inherently interpretable)
 │   ├── scaler_logreg.pkl
 │   ├── cnn_simplecnn.pt
 │   ├── cnn_resnet18.pt
@@ -175,6 +175,15 @@ The backend exposes:
 - `GET /breaths?patient_id=...` — return breath table for a patient
 - `POST /classify` — run FL classification on a breath payload
 - `POST /explain` — return per-feature SHAP contributions for a breath
+
+The web app is designed to use the simplest, most inherently interpretable model (Logistic Regression) and displays how much features contribute to the model's decision of FL/NFL. Here are its key features:
+- **Automated inference pipeline.** Patient data folders (breath windows .xlsx, raw signals .parquet, metadata .json) are loaded, time-matched, and features are extracted automatically using the 47-feature flow-shape feature set derived from Mann et al. (2021). A pre-trained classifier produces per-breath FL/NFL predictions with calibrated probabilities.
+- **Confidence-stratified review queue.** Predictions are split at a configurable confidence threshold (default 80%). High-confidence predictions are auto-labeled; low-confidence breaths are flagged for human review with a distinct visual treatment. This directly mirrors the model's inherent uncertainty — the Mann et al. ordinal model acknowledges a "possible FL" intermediate category that is genuinely ambiguous.
+- **Interactive airflow waveform.** The full recording is displayed as a color-coded waveform (red = FL, green = NFL, yellow = needs review) with clickable breath segments. Selecting a breath zooms into the individual breath shape in the detail panel.
+- **Human-in-the-loop label correction.** Clinicians can resolve flagged breaths or override any model prediction. All manual corrections are tracked with a full audit trail (label, username, timestamp) so the provenance of every label in the exported CSV is traceable.
+- **On-demand explainability.** For any selected breath, airflow feature importances are displayed and explained, ranking the top features driving that individual prediction. This is intentionally localized to each breath rather than global for granularity. These features are also highlighted in the spotlighted waveform whenever localizable.
+- **Auditable CSV export.** Session output includes per-breath labels, model probabilities, confidence scores, label source (model vs user), and edit metadata — designed for downstream research/clinical use and reproducibility.
+
 ---
 
 ---
