@@ -35,7 +35,7 @@ fl-classification/
 │   └── 03-image-classification/         # Image-based classification (EfficientNet-B0, ResNet18, SimpleCNN)
 │       ├── 04_breath_image_dataset.ipynb # Render breaths as images for CNN input
 │       ├── 05_image_classification.ipynb # CNN training and LOPO-CV evaluation
-│       └── 06_xai_image_models.ipynb     # GradCAM / LIME explanations for image models
+│       └── 06_gradcam.ipynb     # GradCAM for image models
 │
 ├── fl_app/                        # Human-in-the-loop clinical interface
 │   ├── frontend/
