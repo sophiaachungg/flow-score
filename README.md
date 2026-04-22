@@ -66,6 +66,8 @@ flow-score/
 
 Each patient's processed data lives in its own subdirectory under `fl_app/backend/data/processed/` (and equivalently for notebook pipelines). The naming convention is `{PatientID}_{YYYY-MM}/`.
 
+> **Note:** Patient data is omitted in this public repository due to IRB constraints and replaced with empty data. For access to the data, please reach out to yike.li.1 [at] vumc.org.
+
 ```
 data/processed/
 └── patient_id/
